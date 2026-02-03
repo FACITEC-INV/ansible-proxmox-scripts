@@ -3,11 +3,12 @@
   hosts: proxmox_remote
   gather_facts: no
   become: true
-
+  vars_files:
+    - ../inventory/host_vars/proxmox.yml
   vars:
     remote_script_path: /root/proxmox_to_ansible.py
     remote_output_dir: /root/proxmox_to_ansible/
-    local_output_dir: ../configs/
+    local_output_dir: "{{ configs_dir }}"
 
   tasks:
     - name: Copiar script al servidor Proxmox

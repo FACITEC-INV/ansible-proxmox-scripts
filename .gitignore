@@ -1,5 +1,2 @@
-# Ignore all YAML files in the configs directory
-configs/**/*.yml
-
 # Ignore all YAML files in the inventory directory and subdirectories
 inventory/**/*.yml

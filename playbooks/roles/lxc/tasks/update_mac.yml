@@ -20,6 +20,6 @@
 
 - name: Actualizar solo net0 en el archivo YAML del contenedor
   ansible.builtin.replace:
-    path: "../configs/lxc/lxc-{{ conf.vmid }}.yml"
+    path: "{{ configs_dir }}/lxc/lxc-{{ conf.vmid }}.yml"
     regexp: '^(\s*)net0:\s*.*$'
     replace: '\1net0: "{{ net0_api }}"'

@@ -1,6 +1,6 @@
 - name: Buscar archivos LXC
   find:
-    paths: ../configs/lxc/
+    paths: "{{ configs_dir }}/lxc/"
     patterns: "*.yml"
   register: lxc_files
 
