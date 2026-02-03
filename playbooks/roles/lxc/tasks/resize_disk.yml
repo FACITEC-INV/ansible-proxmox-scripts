@@ -1,0 +1,55 @@
+# -------------------------------------------------
+# LOGICA DE RESIZE DE DISCO
+# -------------------------------------------------
+
+- name: Obtener tamaño actual del disco (GB)
+  set_fact:
+    current_disk_gb: "{{ (existing_info.proxmox_vms[0].maxdisk / 1024 / 1024 / 1024) | int }}"
+
+- name: Calcular incremento de disco
+  set_fact:
+    disk_increment: "+{{ (conf.disk_volume.size | int) - current_disk_gb }}G"
+
+- name: Mostrar resize a aplicar
+  debug:
+    msg: "Resize disco LXC {{ conf.vmid }}: {{ current_disk_gb }}G → {{ conf.disk_volume.size }}G ({{ disk_increment }})"
+
+# -------------------------------------------------
+# RESIZE VIA API REST (EQUIVALENTE A CURL)
+# -------------------------------------------------
+
+- name: Redimensionar disco LXC vía API Proxmox
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/lxc/{{ conf.vmid }}/resize"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    body_format: form-urlencoded
+    body:
+      disk: rootfs
+      size: "{{ disk_increment }}"
+    validate_certs: false
+    status_code: 200
+  when:
+    - disk_changed
+    - disk_increment != "+0G"
+  register: resize_result
+
+- name: Mostrar resultado del resize
+  debug:
+    var: resize_result
+
+# -------------------------------------------------
+# REINICIO POST-RESIZE
+# -------------------------------------------------
+
+- name: Reiniciar contenedor tras resize de disco
+  community.proxmox.proxmox:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_host }}"
+    api_port: "{{ proxmox_port }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ conf.vmid }}"
+    state: restarted

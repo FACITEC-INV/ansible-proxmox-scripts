@@ -1,0 +1,25 @@
+---
+# Recupera la MAC del contenedor vía API y actualiza solo net0 en el YAML
+
+- name: Obtener configuración del contenedor vía API Proxmox
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/lxc/{{ conf.vmid }}/config"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: false
+  register: api_info
+
+- name: Extraer net0 exactamente como devuelve la API
+  ansible.builtin.set_fact:
+    net0_api: "{{ api_info.json.data.net0 }}"
+
+- name: Mostrar net0 recuperado desde Proxmox
+  ansible.builtin.debug:
+    msg: "net0 API (vmid {{ conf.vmid }}): {{ net0_api }}"
+
+- name: Actualizar solo net0 en el archivo YAML del contenedor
+  ansible.builtin.replace:
+    path: "../configs/lxc/lxc-{{ conf.vmid }}.yml"
+    regexp: '^(\s*)net0:\s*.*$'
+    replace: '\1net0: "{{ net0_api }}"'

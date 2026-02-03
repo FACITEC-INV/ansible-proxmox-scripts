@@ -1,0 +1,41 @@
+- name: Buscar archivos LXC
+  find:
+    paths: ../configs/lxc/
+    patterns: "*.yml"
+  register: lxc_files
+
+- name: Mostrar información de archivos encontrados
+  debug:
+    msg:
+      - "Cantidad de archivos encontrados: {{ lxc_files.matched }}"
+      - "Rutas de los archivos encontrados: {{ lxc_files.files | map(attribute='path') | list }}"
+  when: id is not defined
+  
+- name: Filtrar archivos si se pasó un LXC ID
+  set_fact:
+    lxc_files_filtered: >-
+      {{ lxc_files.files
+         | selectattr('path', 'search', id_pattern) 
+         | list }}
+  vars:
+    id_pattern: 'lxc-{{ id }}\.yml$'
+  when: id is defined
+
+- name: Mostrar archivos filtrados
+  debug:
+    msg:
+      - "Filtro aplicado para LXC ID: {{ id }}"
+      - "Cantidad de archivos después del filtrado: {{ lxc_files_filtered | length }}"
+      - "Rutas de los archivos filtrados: {{ lxc_files_filtered | map(attribute='path') | list }}"
+  when: id is defined
+
+- name: Definir archivos a procesar si no se pasó ID
+  set_fact:
+    lxc_files_filtered: "{{ lxc_files.files }}"
+  when: id is not defined
+
+- name: Procesar contenedores LXC
+  include_tasks: process_lxc.yml
+  loop: "{{ lxc_files_filtered }}"
+  loop_control:
+    label: "{{ item.path }}"

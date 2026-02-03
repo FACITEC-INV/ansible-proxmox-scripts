@@ -1,0 +1,17 @@
+- name: Listar máquinas virtuales KVM en Proxmox
+  hosts: proxmox
+  gather_facts: false
+  tasks:
+    - name: Obtener lista de VMs en nodo facitec
+      community.general.proxmox_vm_info:
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        api_host: "{{ proxmox_host }}"
+        api_port: "{{ proxmox_port }}"
+        node: "facitec"     # Nodo donde están las VMs
+      register: vm_list
+
+    - name: Mostrar información de las VMs
+      debug:
+        var: vm_list

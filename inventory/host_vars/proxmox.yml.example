@@ -1,0 +1,7 @@
+proxmox_host: "192.168.1.2"
+proxmox_port: 8006
+proxmox_api_user: "root@pam"
+proxmox_api_token_id: "ansible"
+proxmox_api_token_secret: "your-api-token-secret-here"
+proxmox_node: "node-name"
+storage_name: "local"

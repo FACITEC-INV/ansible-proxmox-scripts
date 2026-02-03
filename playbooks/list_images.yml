@@ -1,0 +1,27 @@
+---
+- name: Listar emplates LXC y archivos ISO
+  hosts: proxmox
+  gather_facts: false
+
+  tasks:
+    - name: Optener templates LXC y archivos ISO
+      community.proxmox.proxmox_storage_contents_info:
+        api_host: "{{ proxmox_host }}"
+        api_port: "{{ proxmox_port }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_token_id: "{{ proxmox_api_token_id }}"
+        api_token_secret: "{{ proxmox_api_token_secret }}"
+        node: "{{ proxmox_node }}"
+        storage: "{{ storage_name }}"
+        content: "all"
+      register: storage_content
+
+    - name: Filtrar solo templates LXC y archivos ISO
+      set_fact:
+        filtered_templates: "{{ storage_content.proxmox_storage_content 
+                                | selectattr('content', 'in', ['vztmpl', 'iso']) 
+                                | list }}"
+        
+    - name: Mostrar templates filtrados
+      ansible.builtin.debug:
+        var: filtered_templates

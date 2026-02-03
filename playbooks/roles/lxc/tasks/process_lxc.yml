@@ -1,0 +1,95 @@
+- name: Leer YAML del contenedor
+  include_vars:
+    file: "{{ item.path }}"
+    name: conf
+
+- name: Verificar si el contenedor existe (info)
+  community.proxmox.proxmox_vm_info:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_host }}"
+    api_port: "{{ proxmox_port }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ conf.vmid }}"  
+  register: existing_info
+  ignore_errors: yes
+
+- name: Verificar si el contenedor ya existe
+  set_fact:
+    is_existing: "{{ (existing_info.proxmox_vms | selectattr('vmid','equalto', conf.vmid | int) | list | length) > 0 }}"
+
+- name: Mostrar si es nuevo o existente
+  debug:
+    msg: "Contenedor {{ conf.vmid }}: {{ 'EXISTENTE' if is_existing else 'NUEVO' }}"
+
+- name: Crear o actualizar contenedor LXC en Proxmox
+  community.proxmox.proxmox:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_host }}"
+    api_port: "{{ proxmox_port }}"
+    vmid: "{{ conf.vmid }}"
+    node: "{{ proxmox_node }}"
+    hostname: "{{ conf.config.hostname }}"
+    ostype: "{{ conf.config.ostype }}"
+    cores: "{{ conf.config.cores }}"
+    memory: "{{ conf.config.memory }}"
+    netif: "{{ {'net0': conf.config.net0} }}"
+    swap: "{{ conf.config.get('swap', 0) }}"
+    onboot: "{{ conf.config.get('onboot', 1) }}"
+    unprivileged: "{{ conf.config.get('unprivileged', 1) }}"
+    features: "{{ conf.config.get('features', '') }}"    
+    # Solo si el contenedor es nuevo
+    disk_volume:  "{{ conf.disk_volume }}"
+    ostemplate: "{{ conf.config.get('ostemplate', {}) if not is_existing else omit }}"
+    password: "{{ conf.config.get('root_password', '') if not is_existing else omit }}"
+    state: "present"
+  register: result
+
+- name: Mostrar resultado de creación/actualización
+  debug:
+    msg:
+      - "Contenedor {{ conf.vmid }} - Resultado:"
+      - "{{ result }}"
+      - "--------------------------------------------------"
+
+- name: Iniciar contenedor LXC recién creado
+  community.proxmox.proxmox:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_host }}"
+    api_port: "{{ proxmox_port }}"
+    vmid: "{{ conf.vmid }}"
+    node: "{{ proxmox_node }}"
+    state: started
+  when: not is_existing
+  register: start_result
+
+- name: Mostrar resultado de inicio del contenedor
+  debug:
+    msg:
+      - "Contenedor {{ conf.vmid }} - Inicio:"
+      - "{{ start_result }}"
+  when: not is_existing
+
+- name: Verificar si cambió el disco
+  set_fact:
+    disk_changed: >-
+      {{
+        is_existing and
+        (
+          conf.disk_volume.size | int !=
+          (existing_info.proxmox_vms[0].maxdisk / 1024 / 1024 / 1024) | int
+        )
+      }}
+
+- name: actualización de tamaño de disco
+  include_tasks: resize_disk.yml
+  when: is_existing and disk_changed
+
+- name: Actualización de MAC en YAML
+  include_tasks: update_mac.yml
+  when: not is_existing

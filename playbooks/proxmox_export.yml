@@ -1,0 +1,33 @@
+---
+- name: Exportar configuración Proxmox a YAML para Ansible
+  hosts: proxmox_remote
+  gather_facts: no
+  become: true
+
+  vars:
+    remote_script_path: /root/proxmox_to_ansible.py
+    remote_output_dir: /root/proxmox_to_ansible/
+    local_output_dir: ../configs/
+
+  tasks:
+    - name: Copiar script al servidor Proxmox
+      copy:
+        src: ../tools/proxmox_to_ansible.py
+        dest: "{{ remote_script_path }}"
+        mode: '0755'
+
+    - name: Ejecutar script de exportación
+      command: python3 {{ remote_script_path }}
+
+    - name: Crear directorio local de salida
+      delegate_to: localhost
+      run_once: true
+      file:
+        path: "{{ local_output_dir }}"
+        state: directory
+
+    - name: Descargar resultados (rsync)
+      synchronize:
+        src: "{{ remote_output_dir }}"
+        dest: "{{ local_output_dir }}"
+        mode: pull
