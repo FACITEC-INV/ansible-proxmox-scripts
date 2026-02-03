@@ -1,25 +1,3 @@
-- name: Verificar disponibilidad del contenedor
-  command: >
-    python3 {{ tools_dir }}/wait_for_container.py
-    --host "{{ proxmox_host }}"
-    --user "{{ proxmox_api_user }}"
-    --token_name "{{ proxmox_api_token_id }}"
-    --token_value "{{ proxmox_api_token_secret }}"
-    --node "{{ proxmox_node }}"
-    --vmid "{{ conf.vmid }}"
-    --expected-hostname "{{ conf.config.hostname }}"
-    --retries 10
-    --delay 3
-  register: container_status
-  until: container_status.rc == 0
-  retries: 10
-  delay: 3
-  changed_when: false
-
-- name: Mostrar estado de disponibilidad del contenedor
-  debug:
-    var: container_status.rc
-
 - name: Iniciar contenedor LXC 
   community.proxmox.proxmox:
     api_user: "{{ proxmox_api_user }}"
@@ -31,8 +9,11 @@
     vmid: "{{ conf.vmid }}"
     state: started
   register: start_result
-  when: container_status.rc == 0
   changed_when: false
+  retries: 10
+  delay: 3
+  until: start_result is succeeded
+  ignore_errors: yes
 
 - name: Mostrar resultado de inicio
   debug:
