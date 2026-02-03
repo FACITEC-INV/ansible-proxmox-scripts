@@ -54,7 +54,7 @@
 
 - name: Iniciar contenedor LXC 
   include_tasks: start_lxc.yml
-  when: result.changed
+  when: not is_existing
 
 - name: Verificar si cambió el disco
   set_fact:

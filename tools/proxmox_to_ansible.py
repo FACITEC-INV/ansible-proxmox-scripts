@@ -12,6 +12,19 @@ OUTPUT_DIR = "./proxmox_to_ansible"
 os.makedirs(f"{OUTPUT_DIR}/lxc", exist_ok=True)
 os.makedirs(f"{OUTPUT_DIR}/kvm", exist_ok=True)
 
+def clean_output_dir(path):
+    """
+    Elimina todo el contenido del directorio de salida
+    sin borrar el directorio raíz
+    """
+    if not os.path.exists(path):
+        return
+
+    for item in os.listdir(path):
+        item_path = os.path.join(path, item)
+        if os.path.isfile(item_path):
+            os.unlink(item_path)
+
 
 def parse_conf_file(path):
     """Parsea un archivo .conf de Proxmox y lo convierte en diccionario"""
@@ -71,6 +84,36 @@ def create_disk_volume(conf):
 
     return disk_volume
 
+def inject_commented_defaults(yaml_path):
+    """
+    Inserta root_password y ostemplate comentados dentro de config
+    """
+    with open(yaml_path, "r") as f:
+        lines = f.readlines()
+
+    output = []
+    inside_config = False
+    injected = False
+
+    for line in lines:
+        output.append(line)
+
+        if line.strip() == "config:":
+            inside_config = True
+            continue
+
+        if inside_config and not injected:
+            if re.match(r"\s+\w+:", line):
+                output.insert(
+                    len(output) - 1,
+                    "  #root_password: \"changeme\"\n"
+                    "  #ostemplate: \"local:vztmpl/changeme.tar.zst\"\n"
+                )
+                injected = True
+                inside_config = False
+
+    with open(yaml_path, "w") as f:
+        f.writelines(output)
 
 def export_lxc():
     """Exporta contenedores LXC a YAML"""
@@ -93,6 +136,9 @@ def export_lxc():
             output_file = f"{OUTPUT_DIR}/lxc/lxc-{vmid}.yml"
             with open(output_file, "w") as f:
                 yaml.dump(ansible_data, f, default_flow_style=False)
+
+            inject_commented_defaults(output_file)
+
             print(f"LXC exportado: {output_file}")
 
 
@@ -118,6 +164,9 @@ def export_kvm():
 
 
 def main():
+    print("Limpiando directorio de salida...")
+    clean_output_dir(OUTPUT_DIR)
+
     print("Exportando contenedores LXC...")
     export_lxc()
 
