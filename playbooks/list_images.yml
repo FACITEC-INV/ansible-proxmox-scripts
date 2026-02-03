@@ -1,10 +1,10 @@
 ---
-- name: Listar emplates LXC y archivos ISO
+- name: Listar templates LXC y archivos ISO y guardar en YAML
   hosts: proxmox
   gather_facts: false
 
   tasks:
-    - name: Optener templates LXC y archivos ISO
+    - name: Obtener templates LXC y archivos ISO
       community.proxmox.proxmox_storage_contents_info:
         api_host: "{{ proxmox_host }}"
         api_port: "{{ proxmox_port }}"
@@ -21,7 +21,12 @@
         filtered_templates: "{{ storage_content.proxmox_storage_content 
                                 | selectattr('content', 'in', ['vztmpl', 'iso']) 
                                 | list }}"
-        
+
     - name: Mostrar templates filtrados
       ansible.builtin.debug:
         var: filtered_templates
+
+    - name: Guardar templates filtrados en ../configs/images.yml
+      ansible.builtin.copy:
+        dest: ../configs/images.yml
+        content: "{{ filtered_templates | to_yaml }}"
