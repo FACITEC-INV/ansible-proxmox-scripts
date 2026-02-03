@@ -1,0 +1,41 @@
+---
+- name: Configurar contenedor LXC en Proxmox 7+ para VPN
+  hosts: proxmox_remote
+  gather_facts: no
+  become: true
+  vars:
+    lxc_id: "{{ id }}"  # ID del contenedor pasado con -e id=101
+  tasks:
+
+    - name: Comprobar que se pasó el ID del contenedor
+      ansible.builtin.assert:
+        that:
+          - lxc_id is defined
+        fail_msg: "Debe pasar el ID del contenedor con -e id=<ID>"
+
+    - name: Habilitar TUN y nesting en el contenedor
+      ansible.builtin.shell: |
+        pct set {{ lxc_id }} --dev0 /dev/net/tun
+        pct set {{ lxc_id }} --features keyctl=1,nesting=1
+      become: yes
+
+    - name: Agregar acceso a /dev/net/tun (cgroup v2)
+      ansible.builtin.lineinfile:
+        path: "/etc/pve/lxc/{{ lxc_id }}.conf"
+        line: "lxc.cgroup2.devices.allow: c 10:200 rwm"
+        create: yes
+        state: present
+      become: yes
+
+    - name: Reiniciar contenedor para aplicar cambios
+      ansible.builtin.shell: pct reboot {{ lxc_id }}
+      become: yes
+
+    - name: Verificar que /dev/net/tun existe dentro del contenedor
+      ansible.builtin.shell: pct exec {{ lxc_id }} -- ls -l /dev/net/tun
+      register: tun_check
+      failed_when: tun_check.rc != 0
+
+    - name: Mostrar resultado de /dev/net/tun
+      ansible.builtin.debug:
+        var: tun_check.stdout

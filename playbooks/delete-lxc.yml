@@ -1,0 +1,34 @@
+---
+- name: Eliminar contenedor LXC en Proxmox 7+
+  hosts: proxmox_remote
+  gather_facts: no
+  become: true
+  vars:
+    lxc_id: "{{ id }}"
+  tasks:
+
+    - name: Comprobar que se pasó el ID del contenedor
+      ansible.builtin.assert:
+        that:
+          - lxc_id is defined
+          - lxc_id | int is not none
+        fail_msg: "Debe pasar el ID del contenedor con -e id=<ID>"
+
+    - name: Obtener estado del contenedor
+      ansible.builtin.command: pct status {{ lxc_id }}
+      register: lxc_status
+      changed_when: false
+      failed_when: "'unknown' in lxc_status.stderr"
+
+    - name: Detener el contenedor si está en ejecución
+      ansible.builtin.command: pct stop {{ lxc_id }}
+      when: "'running' in lxc_status.stdout"
+
+    - name: Eliminar el contenedor
+      ansible.builtin.command: pct destroy {{ lxc_id }}
+      register: destroy_result
+
+    - name: Mostrar resultado de eliminación
+      ansible.builtin.debug:
+        msg: "Contenedor {{ lxc_id }} eliminado correctamente."
+      when: destroy_result.rc == 0
