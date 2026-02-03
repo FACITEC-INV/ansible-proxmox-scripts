@@ -1,0 +1,15 @@
+- name: Iniciar contenedor LXC 
+  community.proxmox.proxmox:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_host }}"
+    api_port: "{{ proxmox_port }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ conf.vmid }}"
+    state: started
+  register: start_result
+
+- name: Mostrar resultado de inicio
+  debug:
+    var: start_result

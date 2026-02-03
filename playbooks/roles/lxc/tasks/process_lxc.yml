@@ -23,57 +23,38 @@
   debug:
     msg: "Contenedor {{ conf.vmid }}: {{ 'EXISTENTE' if is_existing else 'NUEVO' }}"
 
-- name: Crear o actualizar contenedor LXC en Proxmox
+- name: Crear o actualizar contenedor LXC
   community.proxmox.proxmox:
     api_user: "{{ proxmox_api_user }}"
     api_token_id: "{{ proxmox_api_token_id }}"
     api_token_secret: "{{ proxmox_api_token_secret }}"
     api_host: "{{ proxmox_host }}"
     api_port: "{{ proxmox_port }}"
-    vmid: "{{ conf.vmid }}"
     node: "{{ proxmox_node }}"
+    vmid: "{{ conf.vmid }}"
     hostname: "{{ conf.config.hostname }}"
     ostype: "{{ conf.config.ostype }}"
     cores: "{{ conf.config.cores }}"
     memory: "{{ conf.config.memory }}"
-    netif: "{{ {'net0': conf.config.net0} }}"
+    netif:
+      net0: "{{ conf.config.net0 }}"
     swap: "{{ conf.config.get('swap', 0) }}"
     onboot: "{{ conf.config.get('onboot', 1) }}"
     unprivileged: "{{ conf.config.get('unprivileged', 1) }}"
-    features: "{{ conf.config.get('features', '') }}"    
-    # Solo si el contenedor es nuevo
-    disk_volume:  "{{ conf.disk_volume }}"
-    ostemplate: "{{ conf.config.get('ostemplate', {}) if not is_existing else omit }}"
-    password: "{{ conf.config.get('root_password', '') if not is_existing else omit }}"
-    state: "present"
+    features: "{{ conf.config.get('features', '') }}"
+    disk_volume: "{{ conf.disk_volume }}"
+    ostemplate: "{{ conf.config.get('ostemplate') if not is_existing else omit }}"
+    password: "{{ conf.config.get('root_password') if not is_existing else omit }}"
+    state: present
   register: result
 
 - name: Mostrar resultado de creación/actualización
   debug:
-    msg:
-      - "Contenedor {{ conf.vmid }} - Resultado:"
-      - "{{ result }}"
-      - "--------------------------------------------------"
+    var: result
 
-- name: Iniciar contenedor LXC recién creado
-  community.proxmox.proxmox:
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    api_host: "{{ proxmox_host }}"
-    api_port: "{{ proxmox_port }}"
-    vmid: "{{ conf.vmid }}"
-    node: "{{ proxmox_node }}"
-    state: started
-  when: not is_existing
-  register: start_result
-
-- name: Mostrar resultado de inicio del contenedor
-  debug:
-    msg:
-      - "Contenedor {{ conf.vmid }} - Inicio:"
-      - "{{ start_result }}"
-  when: not is_existing
+- name: Iniciar contenedor LXC 
+  include_tasks: start_lxc.yml
+  when: result.changed
 
 - name: Verificar si cambió el disco
   set_fact:
