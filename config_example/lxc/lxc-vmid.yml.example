@@ -1,0 +1,21 @@
+config:
+    arch: amd64
+    cores: '2'
+    dev0: /dev/net/tun
+    features: nesting=1
+    hostname: example-host
+    memory: '2048'
+    net0: "name=eth0,bridge=vmbr1,ip=dhcp,type=veth"
+    onboot: '1'
+    ostype: debian
+    swap: '256'
+    unprivileged: '1'
+    root_password: "example_password" 
+    ostemplate: "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
+disk_volume:
+    options:
+        mountoptions: discard;lazytime
+    size: 30
+    storage: example-storage
+type: lxc
+vmid: '104'

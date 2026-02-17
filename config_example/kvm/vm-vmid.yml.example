@@ -1,0 +1,13 @@
+vmid: '200'
+type: kvm
+config:
+  boot: order=scsi0;ide2;net0
+  cores: '2'
+  memory: '2048'
+  name: example-kvm
+  ostype: l26
+  scsihw: virtio-scsi-single
+  sockets: '1'
+  net0: virtio,bridge=vmbr0
+  scsi0: example-storage:32
+  ide2: local:iso/example-installer.iso,media=cdrom
