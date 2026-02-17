@@ -1,0 +1,7 @@
+- name: Actualizar maquinas virtuales KVM
+  hosts: proxmox
+  gather_facts: false
+  vars:
+    vm_operation: update
+  roles:
+    - role: kvm

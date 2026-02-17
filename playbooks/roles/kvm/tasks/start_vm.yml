@@ -1,0 +1,37 @@
+- name: Definir necesidad de reinicio
+  set_fact:
+    vm_needs_restart: "{{ is_existing and ((vm_apply_result.changed | default(false)) or (disk_changed | default(false))) }}"
+
+- block:
+    - name: Detener VM existente si hubo cambios
+      community.proxmox.proxmox_kvm:
+        state: stopped
+        force: true
+      when: vm_needs_restart
+
+    - name: Arrancar VM existente si hubo cambios
+      community.proxmox.proxmox_kvm:
+        state: started
+      when: vm_needs_restart
+      register: restart_result
+      retries: 10
+      delay: 3
+      until: restart_result is succeeded
+
+    - name: Iniciar VM nueva
+      community.proxmox.proxmox_kvm:
+        state: started
+      when: not is_existing
+      register: start_result
+      retries: 10
+      delay: 3
+      until: start_result is succeeded
+  module_defaults:
+    community.proxmox.proxmox_kvm:
+      api_user: "{{ proxmox_api_user }}"
+      api_token_id: "{{ proxmox_api_token_id }}"
+      api_token_secret: "{{ proxmox_api_token_secret }}"
+      api_host: "{{ proxmox_host }}"
+      api_port: "{{ proxmox_port }}"
+      node: "{{ proxmox_node }}"
+      vmid: "{{ conf.vmid }}"

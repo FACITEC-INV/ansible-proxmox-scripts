@@ -1,0 +1,19 @@
+- name: Obtener configuracion de la VM
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ conf.vmid }}/config"
+    method: GET
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: false
+  register: api_info
+
+- name: Guardar net0 retornado por Proxmox
+  ansible.builtin.set_fact:
+    net0_api: "{{ api_info.json.data.net0 | default('') }}"
+
+- name: Actualizar net0 en YAML
+  ansible.builtin.lineinfile:
+    path: "{{ vm_yaml_path }}"
+    regexp: '^  net0:\s*.*$'
+    line: "  net0: {{ net0_api }}"
+  when: net0_api | length > 0

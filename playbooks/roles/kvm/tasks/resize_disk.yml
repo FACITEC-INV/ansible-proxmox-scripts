@@ -1,0 +1,17 @@
+- name: Calcular incremento de disco
+  set_fact:
+    disk_increment: "+{{ (desired_disk_gb | int) - (current_disk_gb | int) }}G"
+
+- name: Redimensionar disco
+  ansible.builtin.uri:
+    url: "https://{{ proxmox_host }}:{{ proxmox_port }}/api2/json/nodes/{{ proxmox_node }}/qemu/{{ conf.vmid }}/resize"
+    method: PUT
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    body_format: form-urlencoded
+    body:
+      disk: "{{ vm_disk_key }}"
+      size: "{{ disk_increment }}"
+    validate_certs: false
+    status_code: 200
+  when: disk_increment != "+0G"

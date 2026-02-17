@@ -1,0 +1,119 @@
+- name: Leer YAML de la VM
+  include_vars:
+    file: "{{ item.path }}"
+    name: conf
+
+- name: Obtener estado actual de la VM
+  community.proxmox.proxmox_vm_info:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_host }}"
+    api_port: "{{ proxmox_port }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ conf.vmid }}"
+  register: existing_info
+  failed_when: false
+
+- name: Preparar datos de la VM
+  set_fact:
+    vm_yaml_path: "{{ item.path }}"
+    vm_operation: "{{ vm_operation | default('apply') }}"
+    vm_apply_changed: false
+    vm_config: "{{ conf.config | default({}) }}"
+    is_existing: "{{ (existing_info.proxmox_vms | default([]) | length) > 0 }}"
+    vm_nets: "{{ conf.config | default({}) | dict2items | selectattr('key', 'match', '^net\\d+$') | items2dict }}"
+    vm_scsi: "{{ conf.config | default({}) | dict2items | selectattr('key', 'match', '^scsi\\d+$') | items2dict }}"
+    vm_ide: "{{ conf.config | default({}) | dict2items | selectattr('key', 'match', '^ide\\d+$') | items2dict }}"
+    vm_sata: "{{ conf.config | default({}) | dict2items | selectattr('key', 'match', '^sata\\d+$') | items2dict }}"
+    vm_virtio: "{{ conf.config | default({}) | dict2items | selectattr('key', 'match', '^virtio\\d+$') | items2dict }}"
+
+- name: Preparar IDE segun estado de la VM
+  set_fact:
+    vm_ide_apply: >-
+      {{
+        vm_ide
+        if not is_existing
+        else (vm_ide | dict2items | rejectattr('value', 'search', 'media=cdrom') | items2dict)
+      }}
+
+- name: Determinar disco principal
+  set_fact:
+    vm_disk_key: "{{ vm_config.bootdisk | default('scsi0') }}"
+    vm_disk_spec: "{{ vm_config.get(vm_config.bootdisk | default('scsi0'), '') }}"
+
+- name: Extraer tamano de disco
+  set_fact:
+    vm_disk_size_match: "{{ vm_disk_spec | regex_findall('size=(\\d+)([GMgm])') | first | default(['0', 'G']) }}"
+    vm_disk_short_gb: "{{ vm_disk_spec | regex_findall('^[^,]+:(\\d+)$') | first | default('0') | int }}"
+    vm_disk_has_size_param: "{{ (vm_disk_spec | regex_search('size=\\d+[GMgm]')) is not none }}"
+
+- name: Calcular tamano objetivo en GB
+  set_fact:
+    desired_disk_gb: >-
+      {{
+        (
+          (vm_disk_size_match[0] | int)
+          if (vm_disk_size_match[1] | upper) == 'G'
+          else ((vm_disk_size_match[0] | int) // 1024)
+        )
+        if vm_disk_has_size_param
+        else vm_disk_short_gb
+      }}
+
+- name: Definir flujo create/update
+  set_fact:
+    vm_run_create: "{{ (vm_operation == 'create' and not is_existing) or (vm_operation == 'apply' and not is_existing) }}"
+    vm_run_update: "{{ (vm_operation == 'update' and is_existing) or (vm_operation == 'apply' and is_existing) }}"
+
+- name: Crear o actualizar VM
+  community.proxmox.proxmox_kvm:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_host }}"
+    api_port: "{{ proxmox_port }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ conf.vmid }}"
+    name: "{{ vm_config.name | default('vm-' ~ conf.vmid) }}"
+    cores: "{{ vm_config.cores | default(omit) }}"
+    sockets: "{{ vm_config.sockets | default(omit) }}"
+    memory: "{{ vm_config.memory | default(omit) }}"
+    ostype: "{{ vm_config.ostype | default(omit) }}"
+    onboot: "{{ vm_config.onboot | default(omit) }}"
+    scsihw: "{{ vm_config.scsihw | default(omit) }}"
+    boot: "{{ vm_config.boot | default(omit) }}"
+    bootdisk: "{{ vm_disk_key }}"
+    net: "{{ vm_nets if vm_nets | length > 0 else omit }}"
+    scsi: "{{ vm_scsi if vm_scsi | length > 0 else omit }}"
+    ide: "{{ vm_ide_apply if vm_ide_apply | length > 0 else omit }}"
+    sata: "{{ vm_sata if vm_sata | length > 0 else omit }}"
+    virtio: "{{ vm_virtio if vm_virtio | length > 0 else omit }}"
+    update: "{{ true if vm_run_update else omit }}"
+    state: present
+  when: vm_run_create or vm_run_update
+  register: vm_apply_result
+
+- name: Guardar estado de cambios
+  set_fact:
+    vm_apply_changed: "{{ vm_apply_result.changed | default(false) }}"
+  when: vm_run_create or vm_run_update
+
+- name: Verificar cambio de disco
+  set_fact:
+    current_disk_gb: "{{ (existing_info.proxmox_vms[0].maxdisk | int // 1024 // 1024 // 1024) if is_existing else 0 }}"
+    disk_changed: "{{ is_existing and (desired_disk_gb | int > 0) and (desired_disk_gb | int != (((existing_info.proxmox_vms[0].maxdisk | int) // 1024 // 1024 // 1024) | int)) }}"
+
+- name: Redimensionar disco
+  include_tasks: resize_disk.yml
+  when:
+    - vm_run_update
+    - disk_changed
+
+- name: Aplicar logica de arranque/reinicio
+  include_tasks: start_vm.yml
+  when: vm_run_create or vm_run_update
+
+- name: Actualizar MAC en YAML
+  include_tasks: update_mac.yml
+  when: vm_run_create

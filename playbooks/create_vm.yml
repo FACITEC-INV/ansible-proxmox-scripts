@@ -1,0 +1,7 @@
+- name: Crear maquinas virtuales KVM
+  hosts: proxmox
+  gather_facts: false
+  vars:
+    vm_operation: create
+  roles:
+    - role: kvm

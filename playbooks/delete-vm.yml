@@ -1,0 +1,33 @@
+---
+- name: Eliminar maquina virtual KVM en Proxmox
+  hosts: proxmox_remote
+  gather_facts: no
+  become: true
+  vars:
+    vm_id: "{{ id }}"
+  tasks:
+    - name: Comprobar que se paso el ID de la VM
+      ansible.builtin.assert:
+        that:
+          - vm_id is defined
+          - vm_id | int is not none
+        fail_msg: "Debe pasar el ID de la VM con -e id=<ID>"
+
+    - name: Obtener estado de la VM
+      ansible.builtin.command: qm status {{ vm_id }}
+      register: vm_status
+      changed_when: false
+      failed_when: "'does not exist' in vm_status.stderr"
+
+    - name: Detener la VM si esta en ejecucion
+      ansible.builtin.command: qm stop {{ vm_id }}
+      when: "'running' in vm_status.stdout"
+
+    - name: Eliminar la VM
+      ansible.builtin.command: qm destroy {{ vm_id }} --purge 1
+      register: destroy_result
+
+    - name: Mostrar resultado de eliminacion
+      ansible.builtin.debug:
+        msg: "VM {{ vm_id }} eliminada correctamente."
+      when: destroy_result.rc == 0

@@ -1,0 +1,41 @@
+﻿- name: Buscar archivos KVM
+  find:
+    paths: "{{ configs_dir }}/kvm/"
+    patterns: "*.yml"
+  register: kvm_files
+
+- name: Mostrar información de archivos encontrados
+  debug:
+    msg:
+      - "Cantidad de archivos encontrados: {{ kvm_files.matched }}"
+      - "Rutas de los archivos encontrados: {{ kvm_files.files | map(attribute='path') | list }}"
+  when: id is not defined
+
+- name: Filtrar archivos si se pasó un VM ID
+  set_fact:
+    kvm_files_filtered: >-
+      {{ kvm_files.files
+         | selectattr('path', 'search', id_pattern)
+         | list }}
+  vars:
+    id_pattern: 'vm-{{ id }}\.yml$'
+  when: id is defined
+
+- name: Mostrar archivos filtrados
+  debug:
+    msg:
+      - "Filtro aplicado para VM ID: {{ id }}"
+      - "Cantidad de archivos después del filtrado: {{ kvm_files_filtered | length }}"
+      - "Rutas de los archivos filtrados: {{ kvm_files_filtered | map(attribute='path') | list }}"
+  when: id is defined
+
+- name: Definir archivos a procesar si no se pasó ID
+  set_fact:
+    kvm_files_filtered: "{{ kvm_files.files }}"
+  when: id is not defined
+
+- name: Procesar máquinas virtuales KVM
+  include_tasks: process_vm.yml
+  loop: "{{ kvm_files_filtered }}"
+  loop_control:
+    label: "{{ item.path }}"
