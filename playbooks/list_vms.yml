@@ -1,5 +1,5 @@
 - name: Listar máquinas virtuales KVM en Proxmox
-  hosts: proxmox
+  hosts: "{{ server | default('proxmox') }}"
   gather_facts: false
   tasks:
     - name: Obtener lista de VMs de un nodo

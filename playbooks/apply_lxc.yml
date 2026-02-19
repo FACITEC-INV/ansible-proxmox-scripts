@@ -1,5 +1,5 @@
 - name: Crear o actualizar contenedores LXC
-  hosts: proxmox
+  hosts: "{{ server | default('proxmox') }}"
   gather_facts: false
   roles:
     - role: lxc

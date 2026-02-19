@@ -1,6 +1,6 @@
 ---
 - name: Configurar contenedor LXC en Proxmox 7+ para VPN
-  hosts: proxmox_remote
+  hosts: "{{ server | default('proxmox') }}_remote"
   gather_facts: no
   become: true
   vars:

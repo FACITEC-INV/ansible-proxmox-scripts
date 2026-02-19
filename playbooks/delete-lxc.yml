@@ -1,6 +1,6 @@
 ---
 - name: Eliminar contenedor LXC en Proxmox 7+
-  hosts: proxmox_remote
+  hosts: "{{ server | default('proxmox') }}_remote"
   gather_facts: no
   become: true
   vars:

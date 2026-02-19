@@ -1,6 +1,6 @@
 ---
 - name: Listar templates LXC y archivos ISO y guardar en YAML
-  hosts: proxmox
+  hosts: "{{ server | default('proxmox') }}"
   gather_facts: false
 
   tasks:

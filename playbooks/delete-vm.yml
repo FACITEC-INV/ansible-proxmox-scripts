@@ -1,6 +1,6 @@
 ---
 - name: Eliminar maquina virtual KVM en Proxmox
-  hosts: proxmox_remote
+  hosts: "{{ server | default('proxmox') }}_remote"
   gather_facts: no
   become: true
   vars:

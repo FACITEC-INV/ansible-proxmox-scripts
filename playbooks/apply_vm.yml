@@ -1,5 +1,5 @@
 - name: Crear o actualizar maquinas virtuales KVM
-  hosts: proxmox
+  hosts: "{{ server | default('proxmox') }}"
   gather_facts: false
   vars:
     vm_operation: apply
