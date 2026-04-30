@@ -1,0 +1,48 @@
+---
+- name: Habilitar o deshabilitar SSH root/password en VM
+  hosts: "{{ server | default('proxmox') }}_remote"
+  gather_facts: false
+  become: true
+
+  vars:
+    vm_id: "{{ id | default(omit) }}"
+    enable_root_ssh: "{{ enable | default(true) | bool }}"
+    enable_password_auth: "{{ pass | default(true) | bool }}"
+    permit_root_login_value: "{{ 'yes' if enable_root_ssh else 'no' }}"
+    password_auth_value: "{{ 'yes' if enable_password_auth else 'no' }}"
+
+  tasks:
+    - name: Validar parametros
+      ansible.builtin.assert:
+        that:
+          - vm_id is defined
+        fail_msg: "Debe indicar -e id=<ID>"
+
+    - name: Configurar PermitRootLogin
+      ansible.builtin.shell: >
+        qm guest exec {{ vm_id }} --timeout 20 -- sh -c "
+        if grep -Eq '^[[:space:]]*#?[[:space:]]*PermitRootLogin[[:space:]]+' /etc/ssh/sshd_config; then
+          sed -ri 's|^[[:space:]]*#?[[:space:]]*PermitRootLogin[[:space:]].*|PermitRootLogin {{ permit_root_login_value }}|' /etc/ssh/sshd_config;
+        else
+          echo 'PermitRootLogin {{ permit_root_login_value }}' >> /etc/ssh/sshd_config;
+        fi
+        "
+
+    - name: Configurar PasswordAuthentication
+      ansible.builtin.shell: >
+        qm guest exec {{ vm_id }} --timeout 20 -- sh -c "
+        if grep -Eq '^[[:space:]]*#?[[:space:]]*PasswordAuthentication[[:space:]]+' /etc/ssh/sshd_config; then
+          sed -ri 's|^[[:space:]]*#?[[:space:]]*PasswordAuthentication[[:space:]].*|PasswordAuthentication {{ password_auth_value }}|' /etc/ssh/sshd_config;
+        else
+          echo 'PasswordAuthentication {{ password_auth_value }}' >> /etc/ssh/sshd_config;
+        fi
+        "
+
+    - name: Validar configuracion de SSH
+      ansible.builtin.shell: >
+        qm guest exec {{ vm_id }} --timeout 20 -- sh -c '/usr/sbin/sshd -t || sshd -t'
+      changed_when: false
+
+    - name: Reiniciar SSH
+      ansible.builtin.shell: >
+        qm guest exec {{ vm_id }} --timeout 20 -- sh -c 'systemctl restart ssh || systemctl restart sshd || service ssh restart'
