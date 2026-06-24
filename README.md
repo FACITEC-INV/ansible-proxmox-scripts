@@ -57,6 +57,8 @@ proxmox-scripts/
 │   ├── delete-vm.yml        # Eliminar VM (ejecuta en remoto)
 │   ├── delete-lxc.yml       # Eliminar LXC (ejecuta en remoto)
 │   ├── lxc-vpn.yml          # Habilitar TUN/nesting en LXC (remoto)
+│   ├── lxc_root_ssh.yml     # Configurar SSH root/password en LXC (remoto)
+│   ├── vm_root_ssh.yml      # Configurar SSH root/password en VM (remoto)
 │   ├── proxmox_export.yml   # Exportar configuración viva a YAML (remoto)
 │   └── roles/
 │       ├── kvm/tasks/       # Tareas de ciclo de vida KVM
@@ -77,7 +79,7 @@ Define los nodos Proxmox, cada uno con dos variantes de conexión:
 | Host | Conexión | Uso |
 |---|---|---|
 | `nodename` | Local (`ansible_connection: local`) | Playbooks de API: apply/create/update/list |
-| `nodename_remote` | SSH (`ansible_host`, `ansible_user`, clave privada) | Playbooks de sistema: delete, lxc-vpn, export |
+| `nodename_remote` | SSH (`ansible_host`, `ansible_user`, clave privada) | Playbooks de sistema: delete, lxc-vpn, lxc_root_ssh, vm_root_ssh, export |
 | (repetir para cada nodo) | Local + SSH | Ídem para nodos adicionales |
 
 ```yaml
@@ -419,6 +421,67 @@ ansible-playbook playbooks/lxc-vpn.yml -e id=100
 3. Agrega `lxc.cgroup2.devices.allow: c 10:200 rwm` al archivo `.conf`
 4. Reinicia el contenedor
 5. Verifica que `/dev/net/tun` existe dentro del contenedor
+
+---
+
+### lxc_root_ssh.yml
+
+**Propósito:** Habilitar o deshabilitar acceso SSH como root y autenticación
+por contraseña dentro de un contenedor LXC.
+**Hosts:** `{{ server | default('proxmox') }}_remote` (SSH remoto).
+
+| Parámetro | Valor por defecto | Descripción |
+|---|---|---|
+| `-e id=<VMID>` | — | **Requerido.** ID del contenedor |
+| `-e enable=true/false` | `true` | Habilitar (`true`) o denegar (`false`) `PermitRootLogin` |
+| `-e pass=true/false` | `true` | Habilitar (`true`) o deshabilitar (`false`) `PasswordAuthentication` |
+
+```bash
+# Habilitar root y contraseña (valores por defecto)
+ansible-playbook playbooks/lxc_root_ssh.yml -e id=100
+
+# Solo root, sin contraseña (solo clave SSH)
+ansible-playbook playbooks/lxc_root_ssh.yml -e id=100 -e pass=false
+
+# Deshabilitar root, solo contraseña
+ansible-playbook playbooks/lxc_root_ssh.yml -e id=100 -e enable=false -e pass=true
+```
+
+**Qué hace:**
+1. Ejecuta `pct exec <VMID>` para editar `/etc/ssh/sshd_config` dentro del contenedor
+2. Ajusta `PermitRootLogin` según `-e enable`
+3. Ajusta `PasswordAuthentication` según `-e pass`
+4. Valida la configuración con `sshd -t`
+5. Reinicia el servicio SSH
+
+---
+
+### vm_root_ssh.yml
+
+**Propósito:** Habilitar o deshabilitar acceso SSH como root y autenticación
+por contraseña dentro de una máquina virtual KVM.
+**Hosts:** `{{ server | default('proxmox') }}_remote` (SSH remoto).
+
+| Parámetro | Valor por defecto | Descripción |
+|---|---|---|
+| `-e id=<VMID>` | — | **Requerido.** ID de la VM |
+| `-e enable=true/false` | `true` | Habilitar (`true`) o denegar (`false`) `PermitRootLogin` |
+| `-e pass=true/false` | `true` | Habilitar (`true`) o deshabilitar (`false`) `PasswordAuthentication` |
+
+```bash
+# Habilitar root y contraseña (valores por defecto)
+ansible-playbook playbooks/vm_root_ssh.yml -e id=200
+
+# Solo root con clave SSH, sin contraseña
+ansible-playbook playbooks/vm_root_ssh.yml -e id=200 -e pass=false
+```
+
+**Qué hace:**
+1. Ejecuta `qm guest exec <VMID>` para editar `/etc/ssh/sshd_config` dentro de la VM
+2. Ajusta `PermitRootLogin` según `-e enable`
+3. Ajusta `PasswordAuthentication` según `-e pass`
+4. Valida la configuración con `sshd -t`
+5. Reinicia el servicio SSH (detecta `ssh` o `sshd` automáticamente)
 
 ---
 
